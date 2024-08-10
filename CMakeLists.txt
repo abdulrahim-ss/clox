@@ -3,18 +3,21 @@ project(clox C)
 
 set(CMAKE_C_STANDARD 11)
 
-include_directories(.)
+include_directories(.
+        src
+        headers
+)
 
 add_executable(clox
         main.c
-        chunk.c
-        memory.c
-        debug.c
-        value.c
-        vm.c
-        chunk.h
-        memory.h
-        debug.h
-        value.h
-        vm.h
+        src/chunk.c
+        src/memory.c
+        src/debug.c
+        src/value.c
+        src/vm.c
+        headers/chunk.h
+        headers/memory.h
+        headers/debug.h
+        headers/value.h
+        headers/vm.h
 )
