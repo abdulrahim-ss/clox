@@ -20,4 +20,7 @@ add_executable(clox
         headers/debug.h
         headers/value.h
         headers/vm.h
+        headers/compiler.h
+        src/scanner.c
+        src/compiler.c
 )
