@@ -5,6 +5,7 @@
 #include "vm.h"
 
 static void repl(){
+    printf("CLOX\n");
     char line[1024];
     while (true) {
         printf("> ");

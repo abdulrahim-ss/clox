@@ -44,7 +44,7 @@ static InterpretResult run() {
     } while (false)
 
     while (true) {
-#ifdef DeBUG_TRACE_EXECUTION
+#ifdef DEBUG_TRACE_EXECUTION
         printf("[");
         bool first = true;
         for (Value* slot=vm.stack; slot < vm.stackTop; slot++) {
@@ -72,7 +72,7 @@ static InterpretResult run() {
             case OP_SUBTRACT: BINARY_OP(-); break;
             case OP_MULTIPLY: BINARY_OP(*); break;
             case OP_DIVIDE:   BINARY_OP(/); break;
-            case OP_NEGATE:   *(vm.stackTop-1) = -*(vm.stackTop-1); break;
+            case OP_NEGATE:   vm.stackTop[-1] = -vm.stackTop[-1]; break;
 //            case OP_NEGATE:   push(-pop()); break;
 
             case OP_RETURN: {
@@ -88,13 +88,26 @@ static InterpretResult run() {
 #undef BINARY_OP
 }
 
-//
+
 //InterpretResult interpret(Chunk* chunk){
 //    vm.chunk = chunk;
 //    vm.ip = vm.chunk->code;
 //    return run();
 //}
 InterpretResult interpret(const char* source){
-    compile(source);
-    return INTERPRET_OK;
+    Chunk chunk;
+    initChunk(&chunk);
+
+    if (!compile(source, &chunk)) {
+        freeChunk(&chunk);
+        return INTERPRET_COMPILE_ERROR;
+    }
+
+    vm.chunk = &chunk;
+    vm.ip = vm.chunk->code;
+
+    InterpretResult result = run();
+
+    freeChunk(&chunk);
+    return result;
 }

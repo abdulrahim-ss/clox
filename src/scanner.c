@@ -87,8 +87,8 @@ static void skipWhitespace(){
                 advance();
                 break;
             case '/':
-                if (peek() == '/') {
-                    while (peekNext() != '\n' && !isAtEnd())
+                if (peekNext() == '/') {
+                    while (peek() != '\n' && !isAtEnd())
                         advance();
                 }
                 else return;
@@ -168,6 +168,7 @@ static Token identifier(){
 }
 
 Token scanToken(){
+    skipWhitespace();
     scanner.start = scanner.current;
     if (isAtEnd()) return makeToken(TOKEN_EOF);
 
