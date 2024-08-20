@@ -15,12 +15,13 @@ add_executable(clox
         src/debug.c
         src/value.c
         src/vm.c
+        src/scanner.c
+        src/compiler.c
         headers/chunk.h
         headers/memory.h
         headers/debug.h
         headers/value.h
         headers/vm.h
         headers/compiler.h
-        src/scanner.c
-        src/compiler.c
+        headers/object.h
 )
