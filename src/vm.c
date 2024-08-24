@@ -1,10 +1,12 @@
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
 
-#include "debug.h"
+#include "vm.h"
 #include "compiler.h"
 #include "common.h"
-#include "vm.h"
+#include "object.h"
+#include "memory.h"
 
 VM vm;
 
@@ -27,10 +29,11 @@ static void runtimeError(const char* format, ...){
 
 void initVM(){
     resetStack();
+    vm.objects = NULL;
 }
 
 void freeVM(){
-
+    freeObjects();
 }
 
 void push(Value value){
@@ -48,6 +51,19 @@ Value pop(){
 
 static Value peek(int distance){
     return vm.stackTop[-1 - distance];
+}
+
+static void concatenate(){
+    ObjString* b = AS_STRING(pop());
+    ObjString* a = AS_STRING(pop());
+    int length = a->length + b->length;
+    char* chars = ALLOCATE(char, length + 1);
+    memcpy(chars, a->chars, a->length);
+    memcpy(chars + a->length, b->chars, b->length);
+    chars[length+1] = '\0';
+
+    ObjString* result = takeString(chars, length);
+    push(OBJ_VAL(result));
 }
 
 static InterpretResult run() {
@@ -89,7 +105,21 @@ static InterpretResult run() {
             }
 
             /*Binary operations on constants*/
-            case OP_ADD:      BINARY_OP(NUMBER_VAL, +); break;
+            case OP_ADD: {
+                if (IS_STRING(peek(0)) && IS_STRING(peek(1))) {
+                    concatenate();
+                }
+                else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) {
+                    double r = AS_NUMBER(pop());
+                    double l = AS_NUMBER(pop());
+                    push(NUMBER_VAL(l + r));
+                }
+                else {
+                    runtimeError("Both operands must be either numbers or strings.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                break;
+            }
             case OP_SUBTRACT: BINARY_OP(NUMBER_VAL, -); break;
             case OP_MULTIPLY: BINARY_OP(NUMBER_VAL, *); break;
             case OP_DIVIDE:   BINARY_OP(NUMBER_VAL, /); break;
@@ -100,7 +130,6 @@ static InterpretResult run() {
                 }
                 vm.stackTop[-1] = NUMBER_VAL(-AS_NUMBER(vm.stackTop[-1]));
                 break;
-//            case OP_NEGATE:   push(-pop()); break;
 
             case OP_NIL: push(NIL_VAL); break;
             case OP_TRUE: push(BOOL_VAL(true)); break;

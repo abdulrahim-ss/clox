@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.26)
 project(clox C)
 
 set(CMAKE_C_STANDARD 11)
@@ -24,4 +24,5 @@ add_executable(clox
         headers/vm.h
         headers/compiler.h
         headers/object.h
+        src/object.c
 )

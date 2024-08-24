@@ -8,8 +8,8 @@
 
 #define IS_STRING(value) isObjType((value), OBJ_STRING)
 
-#define AS_STRING(value) ((ObjString*)AS_Obj(value))
-#define AS_CSTRING(value) (((ObjString*)AS_Obj(value))->chars)
+#define AS_STRING(value) ((ObjString*)AS_OBJ(value))
+#define AS_CSTRING(value) (((ObjString*)AS_OBJ(value))->chars)
 
 typedef enum {
     OBJ_STRING,
@@ -17,6 +17,7 @@ typedef enum {
 
 struct Obj {
     ObjectType type;
+    struct Obj* next;
 };
 
 struct ObjString {
@@ -25,11 +26,14 @@ struct ObjString {
     char* chars;
 };
 
+ObjString* takeString(char* chars, int length);
 ObjString* copyString(const char* chars, int length);
 
 static inline bool isObjType(Value value, ObjectType type){
 //    return IS_OBJ(value) && AS_OBJ(value)->type == type;
     return IS_OBJ(value) && OBJ_TYPE(value) == type;
 }
+
+void printObject(Value value);
 
 #endif //CLOX_OBJECT_H
