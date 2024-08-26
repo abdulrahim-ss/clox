@@ -25,4 +25,6 @@ add_executable(clox
         headers/compiler.h
         headers/object.h
         src/object.c
+        headers/table.h
+        src/table.c
 )
