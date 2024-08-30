@@ -177,6 +177,31 @@ static void emitConstant(Value value){
     emitBytes(OP_CONSTANT, makeConstant(value));
 }
 
+static void emitLoop(int loopStart){
+    emitByte(OP_LOOP);
+    int offset = currentChunk()->count - loopStart + 2;
+    if (offset > UINT16_MAX) error("Loop body too large!");
+    emitByte((offset >> 8) & 0xff);
+    emitByte(offset & 0xff);
+}
+
+static int emitJump(uint8_t instruction){
+    emitByte(instruction);
+    emitBytes(0xff, 0xff);
+    return currentChunk()->count - 2;
+}
+
+static void patchJump(int offset){
+    int jump = currentChunk()->count -  offset - 2;
+    if (jump > UINT16_MAX) {
+        error("Too much code to jump over!");
+//        return; THINK IT SHOULD RETURN OTHERWISE IT'LL STILL TRY AND FAIL
+//        TO JUMP OVER CODE LONGER THAN IT COULD HANDLE?
+    }
+    currentChunk()->code[offset] = (jump >> 8) & 0xff;
+    currentChunk()->code[offset + 1] = jump & 0xff;
+}
+
 static uint8_t identifierConstant(Token* name){
     for (int i=0; i<currentChunk()->constants.count; i++){
         Value* constant = &currentChunk()->constants.values[i];
@@ -243,7 +268,6 @@ static void addLocal(Token name){
     Local* local = &current->locals[current->localCount++];
     local->name = name;
     local->depth = -1;
-//    local->depth = current->scopeDepth;
 }
 
 static void declareVariable(){
@@ -375,6 +399,23 @@ static void binary(bool canAssign){
     }
 }
 
+static void and_(bool canAssign){
+    int endJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);
+    parsePrecedence(PREC_AND);
+    patchJump(endJump);
+}
+static void or_(bool canAssign){
+    int elseJump = emitJump(OP_JUMP_IF_FALSE);
+    int endJump = emitJump(OP_JUMP);
+
+    patchJump(elseJump);
+    emitByte(OP_POP);
+
+    parsePrecedence(PREC_OR);
+    patchJump(endJump);
+}
+
 static void literal(bool canAssign){
     switch (parser.previous.type) {
         case TOKEN_NIL:     emitByte(OP_NIL); break;
@@ -408,8 +449,8 @@ ParseRule rules[] = {
         [TOKEN_STRING]          = {string,  NULL,   PREC_NONE},
         [TOKEN_NUMBER]          = {number,  NULL,   PREC_NONE},
         [TOKEN_NIL]             = {literal, NULL,   PREC_NONE},
-        [TOKEN_AND]             = {NULL,    NULL,   PREC_NONE},
-        [TOKEN_OR]              = {NULL,    NULL,   PREC_NONE},
+        [TOKEN_AND]             = {NULL,    and_,   PREC_AND},
+        [TOKEN_OR]              = {NULL,    or_,   PREC_OR},
         [TOKEN_TRUE]            = {literal, NULL,   PREC_NONE},
         [TOKEN_FALSE]           = {literal, NULL,   PREC_NONE},
         [TOKEN_FOR]             = {NULL,    NULL,   PREC_NONE},
@@ -488,14 +529,100 @@ static void expressionStatement(){
     emitByte(OP_POP);
 }
 
+static void ifStatement(){
+    consume(TOKEN_LEFT_PAREN, "Expected '(' after 'if'.");
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expected ')' after condition.");
+
+    int thenJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);
+    statement();
+
+    int elseJump = emitJump(OP_JUMP);
+    patchJump(thenJump);
+    emitByte(OP_POP);
+
+    if (match(TOKEN_ELSE)) statement();
+    patchJump(elseJump);
+}
+
+static void whileStatement(){
+    int loopStart = currentChunk()->count;
+    consume(TOKEN_LEFT_PAREN, "Expected '(' after 'while'.");
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expected ')' after condition.");
+
+    int exitJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);
+    statement();
+    emitLoop(loopStart);
+
+    patchJump(exitJump);
+    emitByte(OP_POP);
+}
+
+static void forStatement(){
+    beginScope();
+    consume(TOKEN_LEFT_PAREN, "Expected '(' after 'for'.");
+    // Check if you could replace all entire bit with just: declaration();
+    if (match(TOKEN_SEMICOLON)) {
+        // Do nothing.
+    }
+    else if (match(TOKEN_VAR))
+        varDeclaration();
+    else
+        expressionStatement();
+    // unitl here!
+
+    int loopStart = currentChunk()->count;
+    int exitJump = -1;
+    if (!match(TOKEN_SEMICOLON)) {
+        expression();
+        consume(TOKEN_SEMICOLON, "Expected ';' after condition.");
+        exitJump = emitJump(OP_JUMP_IF_FALSE);
+        emitByte(OP_POP); //condition val
+    }
+
+    if (!match(TOKEN_RIGHT_PAREN)) {
+        int bodyJump = emitJump(OP_JUMP);
+        int incrementStart = currentChunk()->count;
+        expression();
+        emitByte(OP_POP);
+        consume(TOKEN_RIGHT_PAREN, "Expected ')' after 'for' clauses.");
+
+        emitLoop(loopStart);
+        loopStart = incrementStart;
+        patchJump(bodyJump);
+    }
+
+    statement();
+    emitLoop(loopStart);
+    if (exitJump != -1) {
+        patchJump(exitJump);
+        emitByte(OP_POP); //condition val
+    }
+    endScope();
+}
+
 static void statement() {
     if (match(TOKEN_PRINT))
         printStatement();
+
+    else if (match(TOKEN_IF))
+        ifStatement();
+
+    else if (match(TOKEN_WHILE))
+        whileStatement();
+
+    else if (match(TOKEN_FOR))
+        forStatement();
+
     else if (match(TOKEN_LEFT_BRACE)) {
         beginScope();
         block();
         endScope();
     }
+
     else
         expressionStatement();
 }
